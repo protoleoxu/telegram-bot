@@ -13,14 +13,14 @@ steps:
         {{#success build.status}} 
           ✅  Build #{{build.number}} of {{repo.name}} succeeded.
           
-          📝 Commit by {{commit.email}} on {{commit.branch}}:
-          Commit message: {{commit.message}}
+          📝 {{build.event}} by {{commit.author}} on {{commit.branch}}:
+          {{build.event}} message: {{commit.message}}
           
           🌐 {{ build.link }}
         {{else}} 
           ❌  Build #{{build.number}} of `{{repo.name}}` failed.
-          📝 Commit by {{commit.email}} on {{commit.branch}}:
-          Commit message: {{commit.message}} 
+          📝 {{build.event}} by {{commit.author}} on {{commit.branch}}:
+          {{build.event}} message: {{commit.message}} 
           🌐 {{ build.link }} 
         {{/success}}
     when:
@@ -39,17 +39,15 @@ steps:
         {{#success build.status}} 
           ✅  Build #{{build.number}} of {{repo.name}} succeeded.
           
-          📝 Commit by {{commit.email}} on {{commit.branch}}:
-          Commit message: {{commit.message}}
+          📝 {{build.event}} by {{commit.author}} on {{build.tag}}:
+          {{build.event}}: {{commit.message}}
         {{else}} 
           ❌  Build #{{build.number}} of `{{repo.name}}` failed.
-          📝 Commit by {{commit.email}} on {{commit.branch}}:
-          Commit message: {{commit.message}} 
+          📝 {{build.event}} by {{commit.author}} on {{build.tag}}:
+          {{build.event}}: {{commit.message}} 
           🌐 {{ build.link }} 
         {{/success}}
     when:
-      branch:
-        - master
       event:
         - tag
       status:
