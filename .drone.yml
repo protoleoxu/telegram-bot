@@ -24,8 +24,6 @@ steps:
           🌐 {{ build.link }} 
         {{/success}}
     when:
-      branch:
-        - develop
       event:
         - push
       status:
@@ -43,8 +41,6 @@ steps:
           
           📝 Commit by {{commit.email}} on {{commit.branch}}:
           Commit message: {{commit.message}}
-          
-          🌐 {{ build.link }}
         {{else}} 
           ❌  Build #{{build.number}} of `{{repo.name}}` failed.
           📝 Commit by {{commit.email}} on {{commit.branch}}:
@@ -55,8 +51,7 @@ steps:
       branch:
         - master
       event:
-        - push
-        - pull_request
+        - tag
       status:
       - failure
       - success
