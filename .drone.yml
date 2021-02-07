@@ -11,3 +11,6 @@ steps:
       type: markdown
       debug: true
       tips_title: "drone_msg"
+      message_color: true
+      message_pic: true
+      sha_link: true
