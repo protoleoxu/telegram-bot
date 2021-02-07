@@ -5,7 +5,7 @@ name: telegram-test
 steps:
 # test env
   - name: test telebot message
-    image: lddsb/drone-dingtalk-message
+    image: ddt:latest
     settings:
       token: 3a15e84a03136e9863cbfa237a74ba528a66db89b8e74e141676d6bc1943c2b6
       type: markdown
