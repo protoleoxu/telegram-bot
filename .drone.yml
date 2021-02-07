@@ -7,7 +7,7 @@ steps:
   - name: test telebot message
     image: yitan/tools:ddt
     settings:
-      token: 3a15e84a03136e9863cbfa237a74ba528a66db89b8e74e141676d6bc1943c2b6
+      token: abc548387700a5041e923a17066eecbc9f4e8ea98a284494c19e8e1bb10cb5c7
       type: markdown
       debug: true
       tips_title: "drone_msg"
