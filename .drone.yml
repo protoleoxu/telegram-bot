@@ -5,51 +5,8 @@ name: telegram-test
 steps:
 # test env
   - name: test telebot message
-    image: appleboy/drone-telegram
+    image: lddsb/drone-dingtalk-message
     settings:
-      token: 1048904757:AAHZaZnalw_wth1ZjqK-ci8Nh0DLxviKVsk
-      to: 645898242
-      message: >
-        {{#success build.status}} 
-          ✅  Build #{{build.number}} of {{repo.name}} succeeded.
-          
-          📝 {{build.event}} by {{commit.author}} on {{commit.branch}}:
-          {{build.event}} message: {{commit.message}}
-          
-          🌐 {{ build.link }}
-        {{else}} 
-          ❌  Build #{{build.number}} of `{{repo.name}}` failed.
-          📝 {{build.event}} by {{commit.author}} on {{commit.branch}}:
-          {{build.event}} message: {{commit.message}} 
-          🌐 {{ build.link }} 
-        {{/success}}
-    when:
-      event:
-        - push
-      status:
-      - failure
-      - success
-
-  - name: test muti bot message
-    image: appleboy/drone-telegram
-    settings:
-      token: 1033529929:AAHvVK2RWXvGHpVZjPnLy5vhBcJSn0IIFLk
-      to: -355105149
-      message: >
-        {{#success build.status}} 
-          ✅  Build #{{build.number}} of {{repo.name}} succeeded.
-          
-          📝 {{build.event}} by {{commit.author}} on {{build.tag}}:
-          {{build.event}}: {{commit.message}}
-        {{else}} 
-          ❌  Build #{{build.number}} of `{{repo.name}}` failed.
-          📝 {{build.event}} by {{commit.author}} on {{build.tag}}:
-          {{build.event}}: {{commit.message}} 
-          🌐 {{ build.link }} 
-        {{/success}}
-    when:
-      event:
-        - tag
-      status:
-      - failure
-      - success
+      token: 3a15e84a03136e9863cbfa237a74ba528a66db89b8e74e141676d6bc1943c2b6
+      type: markdown
+      debug: true
