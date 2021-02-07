@@ -10,3 +10,4 @@ steps:
       token: 3a15e84a03136e9863cbfa237a74ba528a66db89b8e74e141676d6bc1943c2b6
       type: markdown
       debug: true
+      tips_title: "drone_msg"
