@@ -37,9 +37,16 @@ steps:
       - .\build_script.ps1
     when:
       branch:
+        - develop
+      event:
         - push
   
   - name: exec copy
     commands:
       - cd D:\code
       - .\copy_script.ps1
+    when:
+      branch:
+        - develop
+      event:
+        - push
