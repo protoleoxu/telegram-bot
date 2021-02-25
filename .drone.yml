@@ -36,6 +36,15 @@ steps:
       - cd D:\code\HelmetDeep
       - git pull
       - CocosCreator.exe --path . --build 'startScene=db://assets/scenes/BuilderScene.fire;platform=web-desktop;previewWidth=720;previewHeight=1280'
+    when:
+      branch:
+        - develop
+      event:
+        - push
+
+  - name: exec copy
+    commands:
+      - cd D:\code\HelmetDeep
       - scp -r .\build\web-desktop\* root@192.168.31.134:/data/nginx/apps/static/linsdni
     when:
       branch:
