@@ -37,7 +37,8 @@ steps:
       # - git pull
       # - CocosCreator.exe --path . --build 'startScene=db://assets/scenes/BuilderScene.fire;platform=web-desktop;previewWidth=720;previewHeight=1280' >> D:\tmp\cocosbuild.log *>&1
       - cd D:\code
-      - .\winrunnerscripts\build_script.ps1
+      # - .\winrunnerscripts\build_script.ps1
+      - git-bash.exe .\winrunnerscripts\build_script.sh
     when:
       branch:
         - develop
