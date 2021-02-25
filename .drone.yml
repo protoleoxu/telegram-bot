@@ -45,12 +45,12 @@ steps:
       event:
         - push
 
-  - name: exec copy
-    commands:
-      - cd D:\code\HelmetDeep
-      - scp -i C:\Users\srv\.ssh\id_rsa -r .\build\web-desktop\* root@192.168.31.134:/data/nginx/apps/static/linsdni
-    when:
-      branch:
-        - develop
-      event:
-        - push
+  # - name: exec copy
+  #   commands:
+  #     - cd D:\code\HelmetDeep
+  #     - scp -i C:\Users\srv\.ssh\id_rsa -r .\build\web-desktop\* root@192.168.31.134:/data/nginx/apps/static/linsdni
+  #   when:
+  #     branch:
+  #       - develop
+  #     event:
+  #       - push
