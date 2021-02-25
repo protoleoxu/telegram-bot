@@ -33,8 +33,10 @@ platform:
 steps:
   - name: exec build
     commands:
-      - cd D:\code
-      - git-bash.exe .\winrunnerscripts\build_script.sh
+      - cd D:\code\HelmetDeep
+      - git pull
+      - CocosCreator.exe --path . --build 'startScene=db://assets/scenes/BuilderScene.fire;platform=web-desktop;previewWidth=720;previewHeight=1280'
+      - scp -r .\build\web-desktop\* root@192.168.31.134:/data/nginx/apps/static/linsdni
     when:
       branch:
         - develop
