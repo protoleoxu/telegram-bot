@@ -21,7 +21,7 @@ steps:
 ---
 kind: pipeline
 type: exec
-name: telegram-test
+name: build
 
 platform:
   os: windows
