@@ -1,6 +1,9 @@
 kind: pipeline
-type: docker
+type: exec
 name: telegram-test
+
+clone:
+  disable: true
 
 steps:
 # test env
@@ -14,3 +17,17 @@ steps:
       message_color: true
       message_pic: true
       sha_link: true
+
+---
+kind: pipeline
+type: exec
+name: telegram-test
+
+platform:
+  os: windows
+  arch: amd64
+
+steps:
+  - name: exec build
+    command:
+      - echo 1
