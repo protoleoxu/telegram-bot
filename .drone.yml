@@ -33,21 +33,23 @@ platform:
 steps:
   - name: exec build
     commands:
-      - cd D:\code\HelmetDeep
-      - git pull
-      - CocosCreator.exe --path . --build 'startScene=db://assets/scenes/BuilderScene.fire;platform=web-desktop;previewWidth=720;previewHeight=1280' >> D:\tmp\cocosbuild.log *>&1
+      # - cd D:\code
+      # - git pull
+      # - CocosCreator.exe --path . --build 'startScene=db://assets/scenes/BuilderScene.fire;platform=web-desktop;previewWidth=720;previewHeight=1280' >> D:\tmp\cocosbuild.log *>&1
+      - cd D:\code
+      - .\winrunnerscripts\build_script.ps1
     when:
       branch:
         - develop
       event:
         - push
 
-  - name: exec copy
-    commands:
-      - cd D:\code\HelmetDeep
-      - scp -r .\build\web-desktop\* root@192.168.31.134:/data/nginx/apps/static/linsdni
-    when:
-      branch:
-        - develop
-      event:
-        - push
+  # - name: exec copy
+  #   commands:
+  #     - cd D:\code\HelmetDeep
+  #     - scp -r .\build\web-desktop\* root@192.168.31.134:/data/nginx/apps/static/linsdni
+  #   when:
+  #     branch:
+  #       - develop
+  #     event:
+  #       - push
