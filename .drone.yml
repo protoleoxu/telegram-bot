@@ -1,5 +1,5 @@
 kind: pipeline
-type: exec
+type: docker
 name: telegram-test
 
 clone:
@@ -29,5 +29,5 @@ platform:
 
 steps:
   - name: exec build
-    command:
+    commands:
       - echo 1
