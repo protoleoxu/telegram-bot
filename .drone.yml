@@ -23,6 +23,9 @@ kind: pipeline
 type: exec
 name: build
 
+clone:
+  disable: true
+
 platform:
   os: windows
   arch: amd64
@@ -30,4 +33,13 @@ platform:
 steps:
   - name: exec build
     commands:
-      - echo 1
+      - cd D:\code
+      - .\build_script.ps1
+    when:
+      branch:
+        - push
+  
+  - name: exec copy
+    commands:
+      - cd D:\code
+      - .\copy_script.ps1
