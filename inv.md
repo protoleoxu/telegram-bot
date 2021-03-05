@@ -114,6 +114,35 @@ UDP协议，用于为设备分配ip地址。
 
 ##### 限制
 
+**cgroups**为内核提供的将一系列task及其子task整合或分隔到按资源划分等级的不同的层级中，进行资源管理的框架。
+
+主要作用：
+
+- 资源限制：设定资源总额上限。
+- 优先级分配：设定资源分配比例，cpu时间片、带宽等。
+- 资源统计：统计资源使用量，cpu时间、内存总量、带宽总量。
+- 任务控制：对task挂起恢复。
+
+概念：
+
+- task：进程或线程。linux内核调度管理不对进程线程区分，只有在clone时通过传入参数的不同进行概念区分。
+- cgroup：cgroups对资源控制以cgroup为单位。cgroup是按不同资源分配标准划分的任务组，包含一个或多个subsystem。一个task可以在某个cgroup中，也可以迁移到另一个cgroup中。
+- subsystem：资源调度控制器。
+  - blkio：限制块设备IO
+  - cpu：限制cpu访问（时间片分配？）
+  - cpuacct：生成cgroup中task的cpu使用报告
+  - cpuset：分配独立cpu和内存结点
+  - devices：限制task访问设备
+  - freezer：暂停或恢复task
+  - hugetlb：限制内存页数量
+  - memory：限制task可用内存并生成内存使用报告
+  - net_cls：使用等级标识符（classid）标记网络数据包，使linux流量控制器识别特定数据包
+- hierarchy：层级，一系列cgroup组合的树状结构。
+
+规则（v1？）：
+- 一个subsystem只能attach（附加？）在一个hierarchy
+- 一个hierarchy可以有多个subsystem
+
 #### 存储
 
 ##### 文件系统
