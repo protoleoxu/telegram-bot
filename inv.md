@@ -123,7 +123,7 @@ UDP协议，用于为设备分配ip地址。
 - 资源统计：统计资源使用量，cpu时间、内存总量、带宽总量。
 - 任务控制：对task挂起恢复。
 
-概念：
+**概念：**
 
 - task：进程或线程。linux内核调度管理不对进程线程区分，只有在clone时通过传入参数的不同进行概念区分。
 - cgroup：cgroups对资源控制以cgroup为单位。cgroup是按不同资源分配标准划分的任务组，包含一个或多个subsystem。一个task可以在某个cgroup中，也可以迁移到另一个cgroup中。
@@ -131,7 +131,7 @@ UDP协议，用于为设备分配ip地址。
   - blkio：限制块设备IO
   - cpu：限制cpu访问（时间片分配？）
   - cpuacct：生成cgroup中task的cpu使用报告
-  - cpuset：分配独立cpu和内存结点
+  - cpuset：分配独立cpu和内存节点
   - devices：限制task访问设备
   - freezer：暂停或恢复task
   - hugetlb：限制内存页数量
@@ -139,9 +139,49 @@ UDP协议，用于为设备分配ip地址。
   - net_cls：使用等级标识符（classid）标记网络数据包，使linux流量控制器识别特定数据包
 - hierarchy：层级，一系列cgroup组合的树状结构。
 
-规则（v1？）：
+**规则（v1？）：**
+
 - 一个subsystem只能attach（附加？）在一个hierarchy
 - 一个hierarchy可以有多个subsystem
+- 一个task可以在多个cgroup中，但不能是同一hierarchy的cgroup，即同一task不能有多个相同资源的限制。
+- 子task默认在父task的cgroup中，可以移动到其他cgroup
+- 当创建了新的cgroup时，默认会将系统中所有进程添加至该cgroups中的root节点
+
+**如何实现（提供用户接口）：**
+
+cgroups通过linux的VFS（虚拟文件系统，TODO）提供用户接口，作为一种文件系统，启动后默认挂载至/sys/fs/cgroup（使用systemd的系统）。
+
+**如何操作：**
+
+可以直接echo > /sys/fs/cgroup下各subsystem中的配置参数？不太安全
+systemd
+
+**关于v1和v2的区别：**
+
+v1：为每个subsystem创建一个hierarchy，再在下创建cgroup
+v2：以cgroup为主导，有一个unified hierarchy，在cgroup中有subsystem
+
+**hierarchy、cgroup、subsystem、slice、scope、service的关系：**
+
+slice、scope、service是systemd创建的unit类型，为cgroup树提供同一层级结构（systemd待补充，TODO）。
+
+service：指由systemd创建的一个或一组进程（举例来说*.service文件配置的服务）。
+scope：指一组由非systemd创建的进程（例如用户会话、容器、虚拟机）。
+slice：指一组按层级排列的unit，不包含进程，但会组件一个层级，将service和scope放入其中。
+
+以下内容为个人理解。
+
+cgroups需要实现对task或task组实现根据资源限制标准分组或整合，则将cgroups功能分为层级结构（为进程分组）、资源限制（控制进程资源）。
+
+systemd会在系统启动后默认创建systemd.slice（所有系统service）、user.slice（所有用户会话）、machine.slice（所有虚拟机Linux容器）、-.slice（根slice）。在这里完成对cgroups功能中层级结构的实现，不同的进程按照性质加入到不同的slice中（service或scope）。
+
+cgroups文件系统挂载至/sys/fs/cgroup，在该目录下包含所有可用的subsystem（controller?），各subsystem下会有上面根据slice-scope、service创建好的层级结构，在这里对不同service或slice进行subsystem的配置。实现层级结构与资源控制解耦。
+
+粗浅理解为
+- hierarchy对应-.slice（顶级，整体的hierarchy，而不是根据具体的被配置了cgroup和subsystem的hierarchy），也可以是root cgroup对应-.slice？
+- \*.slice、scope、service对应子cgroup，当然各个\*.slice、scope、service的子cgroup逻辑上与所有subsystem有关。
+- task对应真正进程。
+
 
 #### 存储
 
