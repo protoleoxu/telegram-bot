@@ -56,7 +56,7 @@
 ttl：每经过一个路由器-1，当ttl=0时，路由器返回icmp错误数据包(ttl exceed)。
 
 
-#### 其他字段 
+#### 其他字段（TODO）
 
 ### DHCP
 
@@ -71,6 +71,10 @@ UDP协议，用于为设备分配ip地址。
 - client ---DHCPREQUEST--> DHCP服务器。收到offer报文后，向DHCP服务器发送request报文，请求使用ip。
 - DHCP服务器 ---DHCPACK--> client。收到request报文后，发送ack，告知client可以使用，并将ip从ip池标记。(client会发送ARP请求该ip，若无响应则表明该ip可用)
 - client ---DHCPRELEASE--> DHCP服务器。client不再使用分配的ip时发送。
+
+### iptables
+
+
 
 
 ## docker
@@ -182,6 +186,7 @@ cgroups文件系统挂载至/sys/fs/cgroup，在该目录下包含所有可用�
 - \*.slice、scope、service对应子cgroup，当然各个\*.slice、scope、service的子cgroup逻辑上与所有subsystem有关。
 - task对应真正进程。
 
+
 #### 存储
 
 docker支持的几种存储驱动或文件系统的描述以及由镜像到容器的存储过程。
@@ -241,6 +246,34 @@ bootfs没有找到非常具体的说明，结合linux启动过程，bootfs指的
 重命名目录：对一个目录调用rename(2)仅仅在资源和目的地路径都在顶层时才被允许，否则返回EXDEV
 
 ##### 文件系统驱动（TODO）
+
+具体（也不是很具体）的联合文件系统是如何组织各镜像层和容器层。
+
+**overlay/overlay2**
+
+overlay文件系统结构上看只有两层，分为lower dir和upper dir。联系镜像与容器的关系，lower dir -> 镜像层联合；upper dir -> 容器层。
+在overlay文件系统中，lower dir中所有上层layer目录中的文件（如果没冲突）都是底层layer中文件的硬链接（以此节约硬盘空间），用户直接操作的挂载点称为merged dir，挂载点挂载最上层lower dir和upper dir。
+其中lower dir为只读，upper dir为读写，用户实际操作的目录为merged dir。
+可以通过`mount | grep overlay`看到实际的挂载信息，显示了lowerdir、upperdir、workdir的路径。能看到lowerdir只有一个路径。（[参考，优缺点也在这了](https://www.itread01.com/content/1541539989.html)）
+
+overlay2与overlay在结构上的区别是，overlay2是多层的，与镜像容器结构相似。overlay2不再使用硬链接方式将lower dir中底层layer的文件硬链接到上一层，lower dir中的上层会有一个指向下层的目录的软连接。挂载点merged dir会挂载lower dir的每一层和upper dir。
+
+一些细节：
+- 当存在同名文件时（文件或目录），upper dir的文件会覆盖lower dir的文件，lower dir的文件被隐藏。
+- COW发生在对lower dir的文件进行写操作时，COPY_UP，先将lower dir的文件复制到upper dir，再写入。
+
+**AUFS**
+
+同样也是分层的文件系统，不过是多层文件系统是叠加在一起的。默认最上层的文件系统是读写，之下的所有层都是只读的。不过可以指定某一层为读写，如果有多个读写层，当进行写操作时可以按照某种策略执行。
+aufs中的层用branch表示，每一个branch代表一个目录，当用aufs挂载时，挂载点可见的文件为每个文件从最高层到最底层的最顶层的文件。
+如果最上层不存在某个文件，则会按branch序号由小到大索引。
+对照镜像容器结构，只读层的多层叠加文件系统 -> 镜像层；读写层 -> 容器。
+
+**devicemapper**
+
+对block操作的文件系统，aufs和overlayfs都是对文件操作。大概的逻辑类似lvm，逻辑卷，devicemapper提供逻辑设备到物理设备的映射机制。
+在docker应用中的粗略描述是，devicemapper会初始化一个资源池（使用thin provisioning，类似动态分配存储，用时分配），资源池可以类比为逻辑卷；接着创建一个带有文件系统的基础设备，这个设备为devicemapper的逻辑设备，所有镜像是基础设备的快照。
+在读写操作方面与aufs和overlayfs类似，都使用了cow，不过只有在写时才会分配实际的块给文件。
 
 #### 网络
 
