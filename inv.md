@@ -1,6 +1,49 @@
-# interview
+- [杂乱笔记](#杂乱笔记)
+  - [策略](#策略)
+    - [负载均衡](#负载均衡)
+      - [策略](#策略-1)
+  - [网络](#网络)
+    - [ARP](#arp)
+    - [ip](#ip)
+    - [DHCP](#dhcp)
+  - [linux 网络协议栈](#linux-网络协议栈)
+    - [网络协议栈](#网络协议栈)
+    - [iptables netfilter](#iptables-netfilter)
+      - [netfilter](#netfilter)
+      - [iptables](#iptables)
+        - [概念](#概念)
+        - [iptables规则](#iptables规则)
+  - [docker](#docker)
+    - [架构（自顶向下）](#架构自顶向下)
+      - [各层级交互细节（TODO）](#各层级交互细节todo)
+    - [功能](#功能)
+      - [资源](#资源)
+        - [隔离](#隔离)
+          - [具体实现/应用（？）](#具体实现应用)
+        - [限制](#限制)
+          - [概念](#概念-1)
+          - [规则（v1？）](#规则v1)
+          - [如何实现（提供用户接口）](#如何实现提供用户接口)
+          - [如何操作](#如何操作)
+          - [关于v1和v2的区别](#关于v1和v2的区别)
+          - [hierarchy、cgroup、subsystem、slice、scope、service的关系](#hierarchycgroupsubsystemslicescopeservice的关系)
+      - [存储](#存储)
+        - [机制](#机制)
+        - [镜像和容器](#镜像和容器)
+        - [文件系统驱动（TODO）](#文件系统驱动todo)
+          - [overlay/overlay2](#overlayoverlay2)
+          - [AUFS](#aufs)
+          - [devicemapper](#devicemapper)
+      - [网络](#网络-1)
+        - [模型](#模型)
+          - [CNM模型](#cnm模型)
+          - [docker网络驱动](#docker网络驱动)
+        - [部分机制类型](#部分机制类型)
+          - [单机网络模型](#单机网络模型)
+          - [全局网络模型](#全局网络模型)
+# 杂乱笔记
 
-## Q&A
+## 策略
 
 ### 负载均衡
 
@@ -18,7 +61,7 @@
 
 链路层协议。实现ip->mac地址解析。
 
-#### 过程
+**过程**
 
 - c1广播发送(ffff.ffff.ffff)c2 mac地址arp请求(包含c1 ip、mac，c2 ip)，局域网内不是c2 ip的设备收到请求后不响应，c2接收请求后响应自身mac。
 - c1收到c2 mac响应，缓存该mac与c2 ip信息至本地arp表。
@@ -27,7 +70,7 @@
 
 提供面向无连接不可靠传输。
 
-#### 默认字段
+**默认字段**
 
 - version：协议版本。
 - header length：头部长度。20-60byte
@@ -43,20 +86,19 @@
 - destination：目的ip。
 
 > 默认字段中  
-> -- source、destination标记分片源目ip
-> -- total length、header length标记头部和分片边界
-> -- id、flags、fo标记分片组，实现数据包分片和重组
-> -- ttl生存时间字段防止通信回环
-> -- differentiated services field实现流量控制
-> -- checksum实现完整性校验
-> -- protocol标记上层应用
+> -- source、destination标记分片源目ip  
+> -- total length、header length标记头部和分片边界  
+> -- id、flags、fo标记分片组，实现数据包分片和重组  
+> -- ttl生存时间字段防止通信回环  
+> -- differentiated services field实现流量控制  
+> -- checksum实现完整性校验  
+> -- protocol标记上层应用  
 
 部分字段解释：
 
 ttl：每经过一个路由器-1，当ttl=0时，路由器返回icmp错误数据包(ttl exceed)。
 
-
-#### 其他字段（TODO）
+**其他字段（TODO）**
 
 ### DHCP
 
@@ -64,7 +106,7 @@ UDP协议，用于为设备分配ip地址。
 
 67、68、546分别为DHCP协议server、client、ipv6client端口。
 
-#### 过程
+**过程**
 
 - client ---DHCPDISCOVER(广播)--> 局域网内所有设备。在不清楚局域网内所有DHCP服务器地址时，通过广播发送discover报文，所有收到报文的DHCP服务器都会响应。
 - DHCP服务器 ---DHCPOFFER--> client。DHCP服务器收到discover报文后向client发送的off报文，包含ip、租期和其他配置信息，此时ip为预分配ip。若不存在可分配ip，则发送DHCPNAK。
@@ -72,10 +114,185 @@ UDP协议，用于为设备分配ip地址。
 - DHCP服务器 ---DHCPACK--> client。收到request报文后，发送ack，告知client可以使用，并将ip从ip池标记。(client会发送ARP请求该ip，若无响应则表明该ip可用)
 - client ---DHCPRELEASE--> DHCP服务器。client不再使用分配的ip时发送。
 
-### iptables
+## linux 网络协议栈
 
+linux网络协议栈概念及部分应用。
 
+### 网络协议栈
 
+**OSI标准七层**
+
+open system interconnection model，开放式系统互联模型，是一种通信系统标准。
+通信系统中的数据流被划分为七层，从跨通信介质传输位的物理实现到分布式应用程序的最高层。每个中间层为上一层提供功能，下一层为自身提供功能。
+
+```
+
+---------------------
+|application layer  |
+---------------------
+|presentation layer |
+---------------------
+|session layer      |
+---------------------
+|transport layer    |
+---------------------
+|network layer      |
+---------------------
+|data link layer    |
+---------------------
+|phyical layer      |
+---------------------
+
+```
+
+**TCP/IP四层**
+
+osi七层为通信系统标准。实际应用为四层（TCP/IP协议簇）模型（感觉是五层）。
+
+```
+
+---------------------
+|application layer  |HTTP、DHCP...
+---------------------
+|transport layer    |TCP、UDP...
+---------------------
+|network layer      |IP、ICMP...
+---------------------
+|link layer    |ARP...
+---------------------
+|phyical layer      |
+---------------------
+
+```
+
+这里划分的还是五层，但是链路层和物理层在其他地方好像合并了，并没有做专门区分。
+
+**linux网络协议栈（TODO）**
+
+（[以下内容均为抄袭...](https://bstanwar.wordpress.com/2010/05/25/anatomy-of-the-linux-networking-stack/)
+
+网络栈结构：
+
+```
+
+-----------------------------
+|application layer          | --->   user space
+-----------------------------
+|system call interface      | ------------
+-----------------------------            |
+|protocol agnostic interface|            |
+-----------------------------            |
+|network protocols          |       kernel space
+-----------------------------            |
+|device agnostic interface  |            |
+-----------------------------            |
+|device drviers             |-------------
+-----------------------------
+|physical device hardware   |
+-----------------------------
+
+```
+
+[具体实现细节太难了...](http://www.uml.org.cn/embeded/2016041410.asp?artid=17878)，以下为尽量理解理解的内容。
+
+按照结构描述，应用层的用户进程通过内核空间提供的系统调用，创建socket（这里是protocol agnostic interface，也即协议无关层）。socket是对network protocols（传输层协议）操作的抽象，低层协议的具体实现被隐藏，用户进程只需要调用socket提供的api去实现应用层功能。
+
+### iptables netfilter
+
+iptables是linux用户空间用于定义网络数据流向规则的工具，而netfilter则是提供实现对数据过滤的内核hook。按照官方解释，netfilter是内核提供的对报文数据包进行过滤修改的框架，允许将过滤修改的函数在设定的阶段作用于网络协议栈；iptables则是一个用户层工具，用来向netfilter添加规则策略（除了iptables也有别的工具可以这样做）。
+
+#### netfilter
+
+**概念**
+
+netfilter在内核协议栈中定义了5个hook点，当数据包经过hook时会触发内核模块注册的hook函数。
+
+hook点：
+- NF_IP_PRE_ROUTING：接收数据包进入协议栈，在路由之前。
+- NF_IP_LOCAL_IN：接收数据包经路由之后，目标地址是本机。
+- NF_IP_FORWARD：接收数据包经路由之后，目标地址是其他机器。
+- NF_IP_LOCAL_OUT：发送数据包进入协议栈。
+- NF_IP_POST_ROUTING：发送/转发数据包经路由之后。
+
+数据包流向大概可以表示为：
+
+```
+                                ------  user procced     --------
+                                ⬆                                |
+                                |                                ⬇
+                            local in                         local out
+                                ⬆                                |
+packet in                       |                                ⬇                          packet out
+------>  prerouting  ------>  route  ------>  forward  ------>  route  ------>  postrouting  ----->
+```
+
+netfiler看起来是工作在网络协议栈的IP层，但是根据[这张图](https://tonybai.com/wp-content/uploads/nf-packet-flow.png)，图中packet流向是经过了链路层的，emmmm，不太清楚细节。
+
+#### iptables
+
+> iptable是专门用来处理ipv4数据包的，ipv6需要使用ip6tables。
+
+##### 概念
+
+iptables使用table管理数据包处理rule。根据类型（作用）被组织为table的rule会注册到netfilter提供的hook点。当数据包经过hook点，根据table中的rule执行对应的hook函数，对数据包进行过滤、跟踪、修改。
+
+table类型（各种作用的rule）：
+- filter：过滤数据
+- nat：网络地址转换
+- mangle：修改数据包
+- raw：控制数据包连接跟踪（connection tracking）？标记数据包
+- security：给数据包打selinux标记（没用过）
+
+chain类型（对应hook点）：
+- PREROUTING：数据包进入路由之前
+- INPUT：数据包路由后进入本机
+- FORWARD：数据包路由后发往其他主机
+- OUTPUT：数据包发出路由之前
+- POSTROUTING：数据包路由后发出后
+
+table与chain的关系是多对多的，一个table可以分布在不同chain上，在不同的数据包流向阶段对其进行相同处理；chain中也包含多个table，在同一阶段对数据包做不同功能的处理。
+
+```
+                                                   user space
+                                     |                                   |
+                                     |                                   |
+                                     |                                   |
+                                     |                                   ⬇
+                                     |                                [output]
+                                +---------+                         +---------+
+                                |  mangle |                         |   raw   |
+                                |  filter |                         |  mangle |
+                                |nat(SNAT)|                         |nat(DNAT)|
+                                +---------+                         |  filter |        
+                                   [input]                          +---------+        
+                                      ⬆                                  |             
+             +---------+              |                                  |             
+             |   raw   |              |           +---------+            |             +---------+
+             |  mangle |              |           |  mangle |            |             |  mangle |
+             |nat(DNAT)|              |           |  filter |            |             |nat(SNAT)|
+packet in    +---------+              |           +---------+            ⬇             +---------+   packet out
+----------> [prerouting] --------> [route] ------> [forward] -------> [route] -------> [postrouting] ------>
+```
+
+table和chain之间的关系如图。同一个chain上的table，有优先级关系（按优先级高到低，raw>mangle>dnat>filter>security>snat）。数据包经过chain时，根据table优先级顺序匹配table中的rule；如果数据包与rule（一是table优先顺序，二是table内rule顺序）匹配成功，则会直接对数据包进行处理，跳过后面的rule。
+
+##### iptables规则
+
+rule的信息分为两部分：
+- matching：匹配条件，协议类型、源目IP、源目端口、网卡、header数据、链接状态...
+- target：匹配成功后怎么处理，常用（用过的...）DROP（丢弃）、ACCEPT（通过）、RETURN（跳出chain）、QUEUE（将数据包加入用户空间队列，等待处理）、JUMP（跳转到用户自定义chain）、REJECT（拒绝）
+
+raw与connection tracking：connection tracking是netfilter提供的链接跟踪系统，可以让iptables基于链接上下文而不是单个数据包匹配判断。
+开启后，connection tracking发生在netfilter框架的NF_IP_PRE_ROUTING和NF_IP_LOCAL_OUT，connection tracking会跟踪每个数据包（除了被raw表中rule标记为NOTRACK的数据包），维护所有链接的状态；维护的链接状态可以供其他表的rule使用，也可以通过/proc/net/ip_conntrack获取链接信息。
+
+链接状态有（[抄了](https://arthurchiao.art/blog/deep-dive-into-iptables-and-netfilter-arch-zh/#2-netfilter-hooks)）：
+- NEW：如果到达的包关连不到任何已有的连接，但包是合法的，就为这个包创建一个新连接。对面向连接的（connection-aware）的协议例如TCP以及非面向连接的（connectionless）的协议例如 UDP 都适用
+- ESTABLISHED：当一个连接收到应答方向的合法包时，状态从NEW变成ESTABLISHED。对TCP这个合法包其实就是SYN/ACK包；对UDP和 ICMP是源和目的IP与原包相反的包
+- RELATED：包不属于已有的连接，但是和已有的连接有一定关系。这可能是辅助连接（helper connection），例如FTP数据传输连接，或者是其他协议试图建立连接时的ICMP应答包
+- INVALID：包不属于已有连接，并且因为某些原因不能用来创建一个新连接，例如无法识别、无法路由等等
+- UNTRACKED：如果在raw table中标记为目标是UNTRACKED，这个包将不会进入连接跟踪系统
+- SNAT：包的源地址被NAT修改之后会进入的虚拟状态。连接跟踪系统据此在收到反向包时对地址做反向转换
+- DNAT：包的目的地址被NAT修改之后会进入的虚拟状态。连接跟踪系统据此在收到反向包时对地址做反向转换
 
 ## docker
 
@@ -95,7 +312,7 @@ UDP协议，用于为设备分配ip地址。
 - runc创建的容器状态存储在/run/runc
 - runc在容器创建完成之前是容器的父进程，创建完成之后runc进程退出，由shim进程接管容器进程（stdin、stdout、容器状态），与containerd、dockerd解耦shim与容器进程
 - shim进程是由containerd通过grpc调用的，runc进程是由shim直接调用runc包函数（？）
-- 
+
 
 ### 功能
 
@@ -127,7 +344,7 @@ UDP协议，用于为设备分配ip地址。
 - 资源统计：统计资源使用量，cpu时间、内存总量、带宽总量。
 - 任务控制：对task挂起恢复。
 
-**概念：**
+###### 概念
 
 - task：进程或线程。linux内核调度管理不对进程线程区分，只有在clone时通过传入参数的不同进行概念区分。
 - cgroup：cgroups对资源控制以cgroup为单位。cgroup是按不同资源分配标准划分的任务组，包含一个或多个subsystem。一个task可以在某个cgroup中，也可以迁移到另一个cgroup中。
@@ -143,7 +360,7 @@ UDP协议，用于为设备分配ip地址。
   - net_cls：使用等级标识符（classid）标记网络数据包，使linux流量控制器识别特定数据包
 - hierarchy：层级，一系列cgroup组合的树状结构。
 
-**规则（v1？）：**
+###### 规则（v1？）
 
 - 一个subsystem只能attach（附加？）在一个hierarchy
 - 一个hierarchy可以有多个subsystem
@@ -151,21 +368,21 @@ UDP协议，用于为设备分配ip地址。
 - 子task默认在父task的cgroup中，可以移动到其他cgroup
 - 当创建了新的cgroup时，默认会将系统中所有进程添加至该cgroups中的root节点
 
-**如何实现（提供用户接口）：**
+###### 如何实现（提供用户接口）
 
 cgroups通过linux的VFS（虚拟文件系统，TODO）提供用户接口，作为一种文件系统，启动后默认挂载至/sys/fs/cgroup（使用systemd的系统）。
 
-**如何操作：**
+###### 如何操作
 
 可以直接echo > /sys/fs/cgroup下各subsystem中的配置参数？不太安全
 systemd
 
-**关于v1和v2的区别：**
+###### 关于v1和v2的区别
 
 v1：为每个subsystem创建一个hierarchy，再在下创建cgroup
 v2：以cgroup为主导，有一个unified hierarchy，在cgroup中有subsystem
 
-**hierarchy、cgroup、subsystem、slice、scope、service的关系：**
+###### hierarchy、cgroup、subsystem、slice、scope、service的关系
 
 slice、scope、service是systemd创建的unit类型，为cgroup树提供同一层级结构（systemd待补充，TODO）。
 
@@ -249,7 +466,7 @@ bootfs没有找到非常具体的说明，结合linux启动过程，bootfs指的
 
 具体（也不是很具体）的联合文件系统是如何组织各镜像层和容器层。
 
-**overlay/overlay2**
+###### overlay/overlay2
 
 overlay文件系统结构上看只有两层，分为lower dir和upper dir。联系镜像与容器的关系，lower dir -> 镜像层联合；upper dir -> 容器层。
 在overlay文件系统中，lower dir中所有上层layer目录中的文件（如果没冲突）都是底层layer中文件的硬链接（以此节约硬盘空间），用户直接操作的挂载点称为merged dir，挂载点挂载最上层lower dir和upper dir。
@@ -262,14 +479,14 @@ overlay2与overlay在结构上的区别是，overlay2是多层的，与镜像容
 - 当存在同名文件时（文件或目录），upper dir的文件会覆盖lower dir的文件，lower dir的文件被隐藏。
 - COW发生在对lower dir的文件进行写操作时，COPY_UP，先将lower dir的文件复制到upper dir，再写入。
 
-**AUFS**
+###### AUFS
 
 同样也是分层的文件系统，不过是多层文件系统是叠加在一起的。默认最上层的文件系统是读写，之下的所有层都是只读的。不过可以指定某一层为读写，如果有多个读写层，当进行写操作时可以按照某种策略执行。
 aufs中的层用branch表示，每一个branch代表一个目录，当用aufs挂载时，挂载点可见的文件为每个文件从最高层到最底层的最顶层的文件。
 如果最上层不存在某个文件，则会按branch序号由小到大索引。
 对照镜像容器结构，只读层的多层叠加文件系统 -> 镜像层；读写层 -> 容器。
 
-**devicemapper**
+###### devicemapper
 
 对block操作的文件系统，aufs和overlayfs都是对文件操作。大概的逻辑类似lvm，逻辑卷，devicemapper提供逻辑设备到物理设备的映射机制。
 在docker应用中的粗略描述是，devicemapper会初始化一个资源池（使用thin provisioning，类似动态分配存储，用时分配），资源池可以类比为逻辑卷；接着创建一个带有文件系统的基础设备，这个设备为devicemapper的逻辑设备，所有镜像是基础设备的快照。
@@ -283,7 +500,7 @@ aufs中的层用branch表示，每一个branch代表一个目录，当用aufs挂
 
 docker使用的网络模型、驱动以及单机网络模型和全局网络模型（跨主机）。
 
-**CNM模型**
+###### CNM模型
 
 包含3种组件：
 
@@ -297,7 +514,7 @@ docker使用的网络模型、驱动以及单机网络模型和全局网络模�
 - veth：虚拟网卡接口，总是成对出现。
 - network namespace：linux提供的用于隔离网络设备、堆栈、端口的机制，创建隔离的网络配置（网络设备、路由表等）。
 
-**docker网络驱动**
+###### docker网络驱动
 
 docker网络库libnetwork中内置几种驱动：
 
@@ -309,7 +526,7 @@ docker网络库libnetwork中内置几种驱动：
 
 ##### 部分机制类型
 
-**单机网络模型**
+###### 单机网络模型
 
 这里仅用bridge驱动构建的网络进行描述，bridge网络驱动也是docker的默认驱动。
 
@@ -337,5 +554,5 @@ network为一组可以互相连通的endpoint -> bridge 作为交换机，多个
 
 在拓扑图中，容器内的数据收发通过veth*，通过本地路由表、arp表记录向其他容器发送或发送至docker0，再由docker0通过en0收发数据；在和不同bridge网络通信时，则是由docker0做路由（FORWARD）。
 
-**全局网络模型**
+###### 全局网络模型
 
