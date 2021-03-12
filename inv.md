@@ -6,13 +6,24 @@
     - [ARP](#arp)
     - [ip](#ip)
     - [DHCP](#dhcp)
-  - [linux 网络协议栈](#linux-网络协议栈)
+  - [中间件](#中间件)
+    - [nginx](#nginx)
+  - [数据库](#数据库)
+  - [linux](#linux)
+    - [分散的一些知识点](#分散的一些知识点)
+      - [进程](#进程)
+    - [IO](#io)
+      - [IO设备访问](#io设备访问)
+      - [IO方式](#io方式)
+      - [IO模型](#io模型)
     - [网络协议栈](#网络协议栈)
     - [iptables netfilter](#iptables-netfilter)
       - [netfilter](#netfilter)
       - [iptables](#iptables)
         - [概念](#概念)
         - [iptables规则](#iptables规则)
+        - [iptables与docker](#iptables与docker)
+        - [iptables部分命令的应用（TODO）](#iptables部分命令的应用todo)
   - [docker](#docker)
     - [架构（自顶向下）](#架构自顶向下)
       - [各层级交互细节（TODO）](#各层级交互细节todo)
@@ -108,15 +119,135 @@ UDP协议，用于为设备分配ip地址。
 
 **过程**
 
-- client ---DHCPDISCOVER(广播)--> 局域网内所有设备。在不清楚局域网内所有DHCP服务器地址时，通过广播发送discover报文，所有收到报文的DHCP服务器都会响应。
-- DHCP服务器 ---DHCPOFFER--> client。DHCP服务器收到discover报文后向client发送的off报文，包含ip、租期和其他配置信息，此时ip为预分配ip。若不存在可分配ip，则发送DHCPNAK。
-- client ---DHCPREQUEST--> DHCP服务器。收到offer报文后，向DHCP服务器发送request报文，请求使用ip。
-- DHCP服务器 ---DHCPACK--> client。收到request报文后，发送ack，告知client可以使用，并将ip从ip池标记。(client会发送ARP请求该ip，若无响应则表明该ip可用)
-- client ---DHCPRELEASE--> DHCP服务器。client不再使用分配的ip时发送。
+- client ---`DHCPDISCOVER`(广播)--> 局域网内所有设备。在不清楚局域网内所有DHCP服务器地址时，通过广播发送discover报文，所有收到报文的DHCP服务器都会响应。
+- DHCP服务器 ---`DHCPOFFER`--> client。DHCP服务器收到discover报文后向client发送的off报文，包含ip、租期和其他配置信息，此时ip为预分配ip。若不存在可分配ip，则发送`DHCPNAK`。
+- client ---`DHCPREQUEST`--> DHCP服务器。收到offer报文后，向DHCP服务器发送request报文，请求使用ip。
+- DHCP服务器 ---`DHCPACK`--> client。收到request报文后，发送ack，告知client可以使用，并将ip从ip池标记。(client会发送ARP请求该ip，若无响应则表明该ip可用)
+- client ---`DHCPRELEASE`--> DHCP服务器。client不再使用分配的ip时发送。
 
-## linux 网络协议栈
+## 中间件
 
-linux网络协议栈概念及部分应用。
+### nginx
+
+
+
+## 数据库
+
+## linux
+
+linux中包含的各种实现及原理。
+
+### 分散的一些知识点
+
+#### 进程
+
+**用户态&内核态**
+
+简单理解，进程的用户态与内核态区别在于运行是否受限（IO请求、进程切换、内存访问等等），即权限不同。
+当进程运行触发系统调用（主动触发，操作系统提供的对计算机资源操作的接口，由用户态进程主动调用，由操作系统执行，本质也是中断，软中断）、异常（被动触发，是进程内部执行触发。IO中断、外部信号）、中断（被动触发，由外部信号触发。进程运算错误）时，会由内核接管cpu。
+
+**上下文切换**
+
+TODO
+
+**文件描述符**
+
+文件描述符是内核返回给进程其所有打开文件的指针。结构上看，进程拥有的是它自己打开文件的指针，指针指向内核维护的操作系统中所有被打开文件的文件描述符表的某条记录，系统的文件描述符表中的记录指向了文件系统维护的文件信息表（ext4的话是inode）。
+进程对文件的所有操作都是通过文件描述符（操作系统提供对文件描述符的系统调用？）。
+
+linux中的进程都有（？）预设打开的三个文件，stdin、stdout、stderr。
+
+### IO
+
+#### IO设备访问
+
+PIO：cpu通过执行IO端口指令进行与慢IO设备数据交换的模型。
+DMA：直接内存访问，不经过cpu直接访问内存进行与慢IO设备数据交换的模型。
+PIO模型下慢IO设备与内存的数据交换是通过cpu控制的；DMA是由cpu向DMA设备发送指令，让DMA设备控制数据传输，传输完成后再通知cpu。
+
+#### IO方式
+
+**缓存IO**
+
+数据从磁盘先通过DMA模式拷贝到内核空间高速缓存页,再从高速缓存页通过cpu拷贝到用户空间应用缓存。缓存I/O被称作为标准I/O，大多数文件系统的默认I/O操作都是缓存I/O。
+分离了用户空间和内核空间，减少缓存与磁盘之间的IO次数（？）；但由于数据在内核空间和用户空间之间多次拷贝，拷贝操作会给cpu和内存带来开销。
+
+```
+ read()    write()
+   ⬆          |
+   |          ⬇
+----------------------
+应用程序缓存（用户空间）
+----------------------
+   ⬆          |
+   |   cpu    ⬇
+----------------------
+      内核缓存区
+----------------------
+   ⬆          |
+   |          ⬇
+----------------------
+        物理设备
+```
+读：操作系统检查内核缓冲区有没有请求数据，如果由，则直接返回缓存；如果没有，从磁盘中读取到内核缓冲区，再复制到用户地址空间。
+写：把用户地址空间的缓存复制到内核缓存，此时对用户进程，写操作已经完成；从内核缓存写到磁盘则由操作系统决定，或显示调用sync()。
+
+**直接IO**
+
+数据从磁盘通过DMA模式拷贝到用户空间应用缓存。由于不需要先将数据拷贝到内核缓存，可以减少用户空间和内核空间数据拷贝带来的cpu和内存开销；但当需要访问的数据不再用户缓存中，需要直接请求磁盘，速度比较慢。
+
+```
+ read()      write()
+   ⬆            |
+   |            ⬇
+----------------------
+应用程序缓存（用户空间）
+----------------------
+   ⬆            |
+   |     cpu    ⬇
+----------------------
+   |  内核缓存区 |
+----------------------
+   ⬆             |
+   |             ⬇
+----------------------
+        物理设备
+```
+
+**内存映射**
+
+（没太懂TODO
+
+使用内存映射方式进行读写的话，其实是对进程逻辑空间中一个指针进行操作，指针指向需要读写的文件。
+
+#### IO模型
+
+[参考资料](https://www.ibm.com/developerworks/cn/linux/l-async/)
+
+同步模型和异步模型的区别：实际的IO操作有没有被阻塞（数据从设备到内核缓存）。
+
+一次read()（举个例子）调用会经过两个阶段：等待数据准备；将数据从内核拷贝至进程。
+IO模型介绍是基于这两个阶段的不同情况。分别有五种IO模型：阻塞式IO、非阻塞式IO、IO复用、信号驱动式IO、异步IO。
+
+**阻塞IO**
+
+同步模型；
+一阶段：使用阻塞IO模型的用户进程在调用系统调用之后，会进入阻塞状态（Blocked）；内核执行系统调用，等待数据；
+二阶段：收到数据后，内核返回，将数据从内核空间拷贝到用户空间，返回结果；用户进程解除阻塞。
+
+（懒得画图了，TODO
+
+**非阻塞IO**
+
+同步模型；与阻塞IO的区别主要是在第一阶段，用户进程调用系统调用之后，会收到内核返回的错误（EWORLDBLOCK/EAGAIN），而不是阻塞进程；用户进程此时知道内核还没有准备好数据，然后不断执行系统调用，直到数据准备完成，进入二阶段。
+
+（懒得画图了，TODO
+
+**IO多路复用**
+
+同步模型、事件驱动IO。
+
+
 
 ### 网络协议栈
 
@@ -158,7 +289,7 @@ osi七层为通信系统标准。实际应用为四层（TCP/IP协议簇）模�
 ---------------------
 |network layer      |IP、ICMP...
 ---------------------
-|link layer    |ARP...
+|link layer         |ARP...
 ---------------------
 |phyical layer      |
 ---------------------
@@ -286,13 +417,20 @@ raw与connection tracking：connection tracking是netfilter提供的链接跟踪
 开启后，connection tracking发生在netfilter框架的NF_IP_PRE_ROUTING和NF_IP_LOCAL_OUT，connection tracking会跟踪每个数据包（除了被raw表中rule标记为NOTRACK的数据包），维护所有链接的状态；维护的链接状态可以供其他表的rule使用，也可以通过/proc/net/ip_conntrack获取链接信息。
 
 链接状态有（[抄了](https://arthurchiao.art/blog/deep-dive-into-iptables-and-netfilter-arch-zh/#2-netfilter-hooks)）：
-- NEW：如果到达的包关连不到任何已有的连接，但包是合法的，就为这个包创建一个新连接。对面向连接的（connection-aware）的协议例如TCP以及非面向连接的（connectionless）的协议例如 UDP 都适用
-- ESTABLISHED：当一个连接收到应答方向的合法包时，状态从NEW变成ESTABLISHED。对TCP这个合法包其实就是SYN/ACK包；对UDP和 ICMP是源和目的IP与原包相反的包
+- NEW：如果到达的包关联不到任何已有的连接，但包是合法的，就为这个包创建一个新连接。对面向连接的（connection-aware）的协议例如TCP以及非面向连接的（connectionless）的协议例如 UDP 都适用
+- ESTABLISHED：当一个连接收到应答方向的合法包时，状态从`NEW`变成`ESTABLISHED`。对TCP这个合法包其实就是`SYN/ACK`包；对UDP和ICMP是源和目的IP与原包相反的包
 - RELATED：包不属于已有的连接，但是和已有的连接有一定关系。这可能是辅助连接（helper connection），例如FTP数据传输连接，或者是其他协议试图建立连接时的ICMP应答包
 - INVALID：包不属于已有连接，并且因为某些原因不能用来创建一个新连接，例如无法识别、无法路由等等
-- UNTRACKED：如果在raw table中标记为目标是UNTRACKED，这个包将不会进入连接跟踪系统
+- UNTRACKED：如果在raw table中标记为目标是`UNTRACKED`，这个包将不会进入连接跟踪系统
 - SNAT：包的源地址被NAT修改之后会进入的虚拟状态。连接跟踪系统据此在收到反向包时对地址做反向转换
 - DNAT：包的目的地址被NAT修改之后会进入的虚拟状态。连接跟踪系统据此在收到反向包时对地址做反向转换
+
+##### iptables与docker
+
+docker安装启动后会自动创建几个chain，并通过jump将数据包从input chain跳转到DOCKER_*的chain上。实际上docker的端口转发也算是通过iptables实现的。
+
+##### iptables部分命令的应用（TODO）
+
 
 ## docker
 
