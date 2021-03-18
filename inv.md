@@ -12,6 +12,11 @@
       - [TCP段格式](#tcp段格式)
       - [握手、挥手](#握手挥手)
       - [可靠传输](#可靠传输)
+    - [HTTP](#http)
+      - [部分概念（http1.0）](#部分概念http10)
+      - [会话](#会话)
+      - [一个http请求的大概流程](#一个http请求的大概流程)
+      - [各版本http协议特点](#各版本http协议特点)
     - [DHCP](#dhcp)
   - [中间件](#中间件)
     - [nginx](#nginx)
@@ -248,6 +253,142 @@ c - ACK=1,ack=y+1 -> s s确认c发送正常、接收正常，c确认s发送正�
 发送方根据接收方的WIN字段连续发送报文段，接收方接收后，根据报文段顺序返回序号（seq）从小到大连续的最大序号（ack）。
 
 重传：连续三次收到相同ACK；超过报文段定时器时间。重发缺失报文段还是重发窗口所有报文段由SACK决定；DSACK告知发送端哪些报文段重复。
+
+### HTTP
+
+超文本传输协议，无状态协议。
+
+#### 部分概念（http1.0）
+
+[一些很细节的字段解释](https://juejin.cn/post/6844903550917541896)
+
+*http连接*
+
+传输层协议通过源目ip端口协议五元组确定一个连接，应用层协议通过url：  
+
+```
+scheme://host[:port#]/path/.../[url-params/][?query][#anchor]
+scheme：协议
+host：目标主机ip/域名
+port：如果有（http默认80，https默认443）而且不是默认端口，需要添加
+path：访问路径
+url-params：人为定义的在path中的字段
+query：查询条件
+anchor：锚点，定位页面位置
+```
+
+*http报文*
+
+http 1.0 中有两种，请求、响应。
+
+请求：
+
+```
+method url http协议版本
+header
+
+body
+
+method：http定义的请求方式
+url：请求目标资源
+header：首部字段
+body：不一定有，post比较常见
+```
+
+响应：
+
+```
+http协议版本 code code_detail
+header
+
+body
+
+code：标记服务端响应状态
+code_detail：响应状态说明
+header：首部字段
+body：一般有
+```
+
+*method*
+
+GET: 获取URL指定的资源；
+POST：传输实体信息
+PUT：上传文件
+DELETE：删除文件
+HEAD：获取报文首部，与GET相比，不返回报文主体部分
+
+*code*
+
+1XX：提示信息 - 表示请求已被成功接收，继续处理
+2XX：成功 - 表示请求已被成功接收，理解，接受
+3XX：重定向 - 要完成请求必须进行更进一步的处理
+4XX：客户端错误 - 请求有语法错误或请求无法实现
+5XX：服务器端错误 - 服务器未能实现合法的请求
+
+常用：
+
+206：表示请求成功，body包含请求数据区间，根据请求range字段确定
+302：Found 重定向，新的url会在resp中的location中返回，浏览器会将使用新的url发出新的请求。
+304：Not Modified 代表上次的文档已经被缓存了，使用缓存的文档
+400：Bad Request 客户端请求与语法错误，不能被服务器所理解
+403：Forbidden 服务器收到请求，但是拒绝提供服务
+404：Not Found 请求的资源不存在，url错误
+500：Internal Server Error 服务错误
+502：Bad Gateway 响应无效
+503：Server Unavailable 服务器当前不能处理客户端的请求
+504：gateway timeout 服务不可达
+
+#### 会话
+
+http协议本身是无状态的（和Tcp一样）；约定使用Cookie、Set-Cookie字段去表示一个会话（tcp也一样，类似）。
+
+Cookie是客户端请求时加入header的，Set-Cookie时服务端响应时加入header的。
+
+*字段属性*
+
+Set-Cookie
+
+NAME=VALUE：赋予Cookie的名称和值；
+expires=DATE: Cookie的有效期；
+path=PATH: 将服务器上的目录作为Cookie的适用对象，若不指定，则默认为文档所在的文件目录；
+domin=域名：作为Cookies适用对象的域名，若不指定，则默认为创建Cookie的服务器域名；
+Secure: 仅在HTTPS安全通信是才会发送Cookie；
+HttpOnly: 使Cookie不能被JS脚本访问；
+
+Cookie中的值根据Set-Cookie确定。
+
+#### 一个http请求的大概流程
+
+请求数据的包装细节忽略，应用层程序知道目标主机程序的ip、port（如果仅有host，则先需要请求dns解析，解析过程-查找本地hosts解析记录-请求root域名服务-请求顶级域名服务-请求次级域名服务-请求权威域名服务-获取ip）；与目标主机建立tcp连接；发送http包；
+
+#### 各版本http协议特点
+
+*1.0*
+
+1.0版本的协议中，一次请求响应，就是一个tcp连接建立、传输、断开的过程；当请求数量较多时，建立、断开tcp请求的开销就会变得很大。
+
+*1.1*
+
+长连接支持。keep-alive，tcp连接复用，不用每次请求都建立一个新的连接，keep-alive在tcp协议中实现类似心跳，但如果服务不可用也可能保持连接，故应用层的keep-alive还需要在应用层实现，；pipeline，允许c连续请求，但s必须按收到请求顺序依次响应；理论上c向s请求一次需要等待响应，再发送下一次请求；身份认证、状态管理、缓存处理、断点续传、host请求 。
+
+*2.0*
+
+1.*版本协议字段语义化（文本方式？一目了然？），2.0版本使用二进制帧。
+
+概念：
+
+- 帧：http2.0最小通信单位，所有帧共享8字节首部，包含帧长度、类型、标志、保留位
+- 消息：逻辑上的http消息（请求、响应），包含一个或多个帧
+- 流：tcp连接虚拟信道
+
+http1.\*消息格式为头部+body，http2.0将http1.\*消息分为多个消息和帧，用二进制编码；头部为header帧，body为data帧。
+
+实现（TODO）：
+
+- 首部压缩
+- 多路复用
+- 请求优先级
+- 服务器推送
 
 ### DHCP
 
